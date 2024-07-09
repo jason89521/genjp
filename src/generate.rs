@@ -5,6 +5,8 @@ use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
 use directories::ProjectDirs;
 
+const IGNORE_FILES: [&str; 2] = ["node_modules", "pnpm-lock.yaml"];
+
 pub fn prompt() -> std::io::Result<()> {
     let templates_path = get_templates_path()?;
     let templates = fs::read_dir(&templates_path)?
@@ -40,6 +42,9 @@ fn copy_dir_all<P: AsRef<Path>>(src: &P, dst: &P) -> std::io::Result<()> {
     fs::create_dir_all(&dst)?;
     for entry in fs::read_dir(src)? {
         let entry = entry?;
+        if IGNORE_FILES.contains(&entry.file_name().to_str().unwrap()) {
+            continue;
+        }
         let t = entry.file_type()?;
         if t.is_dir() {
             copy_dir_all(&entry.path(), &dst.as_ref().join(entry.file_name()))?;
