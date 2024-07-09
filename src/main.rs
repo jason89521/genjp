@@ -16,8 +16,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Set up the templates directory
     SetTemplates {
-        #[arg(short, long)]
+        #[arg()]
         path: PathBuf,
     },
 }
