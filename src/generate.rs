@@ -6,9 +6,7 @@ use dialoguer::{Input, Select};
 use directories::ProjectDirs;
 use serde_json::Value;
 
-use crate::utils::{is_special_file, SpecialFile};
-
-const IGNORE_FILES: [&str; 2] = ["node_modules", "pnpm-lock.yaml"];
+use crate::utils::{is_special_file, should_ignore, SpecialFile};
 
 pub fn prompt() -> std::io::Result<()> {
     let templates_path = get_templates_path()?;
@@ -46,7 +44,7 @@ fn copy_dir_all<P: AsRef<Path>>(src: &P, dst: &P, project_name: &str) -> std::io
     for entry in fs::read_dir(src)? {
         let entry = entry?;
         let file_name = entry.file_name();
-        if IGNORE_FILES.contains(&file_name.to_str().unwrap()) {
+        if should_ignore(&file_name) {
             continue;
         }
         let t = entry.file_type()?;

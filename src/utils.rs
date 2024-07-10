@@ -1,5 +1,6 @@
 use std::ffi::OsString;
 
+const IGNORE_FILES: [&str; 2] = ["node_modules", "pnpm-lock.yaml"];
 const PACKAGE_JSON: &str = "package.json";
 
 #[derive(Debug, PartialEq, Eq)]
@@ -18,9 +19,22 @@ pub fn is_special_file(file_name: &OsString) -> Option<SpecialFile> {
     }
 }
 
+pub fn should_ignore<T: PartialEq<str> + ?Sized>(file_name: &T) -> bool {
+    if IGNORE_FILES
+        .iter()
+        .filter(|&&file| file_name == file)
+        .count()
+        == 0
+    {
+        false
+    } else {
+        true
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::{is_special_file, SpecialFile, PACKAGE_JSON};
+    use crate::utils::{is_special_file, should_ignore, SpecialFile, IGNORE_FILES, PACKAGE_JSON};
     use std::ffi::OsString;
 
     #[test]
@@ -29,5 +43,13 @@ mod test {
             is_special_file(&OsString::from(PACKAGE_JSON)),
             Some(SpecialFile::PackageJSON)
         );
+    }
+
+    #[test]
+    fn ignore_files() {
+        assert!(!should_ignore(PACKAGE_JSON));
+        for item in IGNORE_FILES.iter() {
+            assert!(should_ignore(&OsString::from(item)))
+        }
     }
 }
