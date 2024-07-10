@@ -1,12 +1,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Input, Select};
 use directories::ProjectDirs;
-use serde_json::Value;
+use serde_json::{json, Value};
 
-use crate::utils::{is_special_file, should_ignore, SpecialFile};
+use crate::prompt::Prompt;
+use crate::utils::{
+    is_special_file, should_ignore, SpecialFile, PACKAGE_JSON, PNPM_WORKSPACE_YAML,
+};
 
 pub fn prompt() -> std::io::Result<()> {
     let templates_path = get_templates_path()?;
@@ -20,21 +21,36 @@ pub fn prompt() -> std::io::Result<()> {
             }
         })
         .collect::<Vec<_>>();
-    let theme = ColorfulTheme::default();
-    let selected_template = Select::with_theme(&theme)
-        .with_prompt("Which template do you want to use?")
-        .default(0)
-        .items(&templates)
-        .interact()
-        .map(|idx| templates_path.join(&templates[idx]))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-    let project_name: String = Input::with_theme(&theme)
-        .with_prompt("What's your project's name?")
-        .interact_text()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
-    let dst = PathBuf::from(&project_name);
-    empty_folder(&dst);
-    copy_dir_all(&selected_template, &dst, &project_name)?;
+
+    let prompt = Prompt::new(templates_path, templates)
+        .confirm_is_monorepo()
+        .enter_monorepo_name()
+        .setup_projects();
+
+    if prompt.is_monorepo {
+        empty_folder(&prompt.monorepo_name);
+    }
+    for project in prompt.projects.iter() {
+        empty_folder(&project.name);
+        copy_dir_all(&project.template_path, &project.dst, &project.name)?;
+    }
+
+    if prompt.is_monorepo {
+        let mut package_json = json!({});
+        package_json["name"] = json!(&prompt.monorepo_name);
+        let monorepo_path = PathBuf::from(&prompt.monorepo_name);
+        fs::write(
+            monorepo_path.join(PACKAGE_JSON),
+            serde_json::to_string_pretty(&package_json).unwrap(),
+        )?;
+        let mut workspace_content = String::from("packages:\n");
+        for project in prompt.projects.iter() {
+            workspace_content.push_str("  - ");
+            workspace_content.push_str(&project.name);
+            workspace_content.push('\n');
+        }
+        fs::write(monorepo_path.join(PNPM_WORKSPACE_YAML), workspace_content)?;
+    }
 
     Ok(())
 }
@@ -71,8 +87,8 @@ fn copy_dir_all<P: AsRef<Path>>(src: &P, dst: &P, project_name: &str) -> std::io
 }
 
 fn empty_folder<P: AsRef<Path>>(dst: &P) {
-    if let Err(_) = fs::remove_dir_all(dst) {
-        println!("Target folder not exist, create one.")
+    if let Err(e) = fs::remove_dir_all(dst) {
+        eprintln!("{}", e);
     };
 }
 

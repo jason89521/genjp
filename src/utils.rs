@@ -1,7 +1,8 @@
 use std::ffi::OsString;
 
 const IGNORE_FILES: [&str; 2] = ["node_modules", "pnpm-lock.yaml"];
-const PACKAGE_JSON: &str = "package.json";
+pub const PACKAGE_JSON: &str = "package.json";
+pub const PNPM_WORKSPACE_YAML: &str = "pnpm-workspace.yaml";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum SpecialFile {
