@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::{env, fs};
 
 mod generate;
+mod utils;
 
 use generate::{get_config_dir, prompt};
 

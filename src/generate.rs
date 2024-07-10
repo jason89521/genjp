@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
 use directories::ProjectDirs;
+use serde_json::Value;
+
+use crate::utils::{is_special_file, SpecialFile};
 
 const IGNORE_FILES: [&str; 2] = ["node_modules", "pnpm-lock.yaml"];
 
@@ -33,23 +36,37 @@ pub fn prompt() -> std::io::Result<()> {
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
     let dst = PathBuf::from(&project_name);
     empty_folder(&dst);
-    copy_dir_all(&selected_template, &dst)?;
+    copy_dir_all(&selected_template, &dst, &project_name)?;
 
     Ok(())
 }
 
-fn copy_dir_all<P: AsRef<Path>>(src: &P, dst: &P) -> std::io::Result<()> {
+fn copy_dir_all<P: AsRef<Path>>(src: &P, dst: &P, project_name: &str) -> std::io::Result<()> {
     fs::create_dir_all(&dst)?;
     for entry in fs::read_dir(src)? {
         let entry = entry?;
-        if IGNORE_FILES.contains(&entry.file_name().to_str().unwrap()) {
+        let file_name = entry.file_name();
+        if IGNORE_FILES.contains(&file_name.to_str().unwrap()) {
             continue;
         }
         let t = entry.file_type()?;
         if t.is_dir() {
-            copy_dir_all(&entry.path(), &dst.as_ref().join(entry.file_name()))?;
+            copy_dir_all(&entry.path(), &dst.as_ref().join(file_name), project_name)?;
         } else {
-            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            match is_special_file(&file_name) {
+                Some(SpecialFile::PackageJSON) => {
+                    let mut package_json: Value =
+                        serde_json::from_str(&fs::read_to_string(entry.path())?)
+                            .expect("Cannot parse package.json");
+                    package_json["name"] = Value::String(project_name.to_string());
+                    let content = serde_json::to_string_pretty(&package_json)
+                        .expect("Failed to serialize package.json");
+                    fs::write(dst.as_ref().join(&file_name), content)?;
+                }
+                _ => {
+                    fs::copy(entry.path(), dst.as_ref().join(file_name))?;
+                }
+            }
         }
     }
     Ok(())
